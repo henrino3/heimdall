@@ -1,7 +1,17 @@
 #!/usr/bin/env python3
 """
-Skill Scanner v2.0 - Context-Aware Security Scanner for OpenClaw Skills
+Skill Scanner v3.0 - Context-Aware Security Scanner for OpenClaw Skills
 Scans skill code for malicious patterns before installation.
+
+v3.0 NEW (HiveFence Scout, PromptArmor, Simon Willison):
+- Remote fetch detection (skill.md/heartbeat.md from internet)
+- Heartbeat injection patterns
+- MCP tool abuse (no_human_approval, auto_approve)
+- Unicode tag injection (hidden U+E0001-U+E007F)
+- Auto-approve exploits (curl | bash)
+- Crypto wallet extraction patterns
+- Agent impersonation patterns
+- Data pre-fill exfiltration (Google Forms)
 
 v2.0 Improvements:
 - Context-aware scanning (documentation vs execution)
@@ -308,6 +318,65 @@ PATTERNS: List[Tuple[str, Severity, str, str]] = [
     (r"xmrig", Severity.CRITICAL, "crypto", "Crypto miner detected"),
     (r"stratum\+tcp://", Severity.CRITICAL, "crypto", "Mining pool protocol"),
     (r"monero.*wallet|wallet.*monero", Severity.CRITICAL, "crypto", "Monero wallet"),
+    
+    # =============================================================================
+    # v3.0 PATTERNS - From HiveFence Scout, PromptArmor, Simon Willison
+    # =============================================================================
+    
+    # Category: Remote Fetch & Execute (Willison - rug pull risk)
+    (r"curl\s+.*skill\.md", Severity.CRITICAL, "remote_fetch", "Fetching skill from internet"),
+    (r"curl\s+.*SKILL\.md", Severity.CRITICAL, "remote_fetch", "Fetching skill from internet"),
+    (r"curl\s+.*heartbeat\.md", Severity.CRITICAL, "remote_fetch", "Fetching heartbeat from internet"),
+    (r"curl\s+.*HEARTBEAT\.md", Severity.CRITICAL, "remote_fetch", "Fetching heartbeat from internet"),
+    (r"wget\s+.*skill\.md", Severity.CRITICAL, "remote_fetch", "Fetching skill from internet"),
+    (r"fetch\s+.*heartbeat", Severity.HIGH, "remote_fetch", "Fetching heartbeat instructions"),
+    (r"https?://.*\.md\s*>\s*~/", Severity.CRITICAL, "remote_fetch", "Downloading MD to home dir"),
+    (r"https?://.*\.md\s*>\s*~/.*(moltbot|openclaw|clawdbot)", Severity.CRITICAL, "remote_fetch", "Downloading to agent skills dir"),
+    
+    # Category: Heartbeat Injection (Willison)
+    (r">>\s*.*HEARTBEAT\.md", Severity.CRITICAL, "heartbeat_injection", "Appending to heartbeat file"),
+    (r">\s*.*HEARTBEAT\.md", Severity.HIGH, "heartbeat_injection", "Overwriting heartbeat file"),
+    (r"echo\s+.*>.*heartbeat", Severity.HIGH, "heartbeat_injection", "Writing to heartbeat"),
+    (r"(every|periodic|interval).*fetch.*https?://", Severity.HIGH, "heartbeat_injection", "Periodic remote fetch pattern"),
+    
+    # Category: MCP Tool Abuse (PromptArmor)
+    (r"mcp[_-]?tool", Severity.MEDIUM, "mcp_abuse", "MCP tool reference"),
+    (r"no[_-]?human[_-]?(approval|review|confirm)", Severity.CRITICAL, "mcp_abuse", "Bypassing human approval"),
+    (r"auto[_-]?approve", Severity.CRITICAL, "mcp_abuse", "Auto-approve pattern"),
+    (r"skip[_-]?(confirm|approval|review)", Severity.HIGH, "mcp_abuse", "Skipping confirmation"),
+    (r"PreToolUse.*override", Severity.CRITICAL, "mcp_abuse", "Hook override attempt"),
+    (r"PromptSubmit.*bypass", Severity.CRITICAL, "mcp_abuse", "Prompt submission bypass"),
+    
+    # Category: Unicode Tag Injection (Willison)
+    (r"[\U000E0001-\U000E007F]", Severity.CRITICAL, "unicode_injection", "Hidden Unicode tag character"),
+    (r"\\u[Ee]00[0-7][0-9a-fA-F]", Severity.HIGH, "unicode_injection", "Unicode tag escape sequence"),
+    (r"&#x[Ee]00[0-7][0-9a-fA-F];", Severity.HIGH, "unicode_injection", "HTML entity Unicode tag"),
+    
+    # Category: Auto-Approve Exploits (LLMSecurity.net)
+    (r"always\s+allow", Severity.HIGH, "auto_approve", "Always allow pattern"),
+    (r"allow\s+all", Severity.HIGH, "auto_approve", "Allow all pattern"),
+    (r"\$\([^)]+\)", Severity.MEDIUM, "auto_approve", "Process substitution"),
+    (r"`[^`]+`", Severity.MEDIUM, "auto_approve", "Backtick command substitution"),
+    (r"curl\s+[^|]*\|\s*bash", Severity.CRITICAL, "auto_approve", "Curl pipe to bash"),
+    (r"curl\s+[^|]*\|\s*sh", Severity.CRITICAL, "auto_approve", "Curl pipe to shell"),
+    
+    # Category: Crypto Wallet Extraction (opensourcemalware)
+    (r"[13][a-km-zA-HJ-NP-Z1-9]{25,34}", Severity.HIGH, "crypto_wallet", "Bitcoin address pattern"),
+    (r"0x[a-fA-F0-9]{40}", Severity.HIGH, "crypto_wallet", "Ethereum address pattern"),
+    (r"wallet\s*[=:]\s*['\"][^'\"]{25,}", Severity.HIGH, "crypto_wallet", "Wallet assignment"),
+    (r"(seed|mnemonic)\s*(phrase|words?)", Severity.CRITICAL, "crypto_wallet", "Seed phrase reference"),
+    (r"private[_-]?key\s*[=:]", Severity.CRITICAL, "crypto_wallet", "Private key assignment"),
+    
+    # Category: Agent Impersonation (HiveFence)
+    (r"(i\s+am|i'm)\s+(the\s+)?(admin|owner|developer|creator)", Severity.HIGH, "impersonation", "Authority claim"),
+    (r"system\s*:\s*you\s+are", Severity.HIGH, "impersonation", "System prompt injection"),
+    (r"\[SYSTEM\]", Severity.HIGH, "impersonation", "Fake system tag"),
+    (r"ignore\s+(all\s+)?(previous|prior)\s+(instructions?|prompts?)", Severity.CRITICAL, "impersonation", "Instruction override"),
+    
+    # Category: Data Pre-fill Exfiltration (PromptArmor)
+    (r"docs\.google\.com/forms.*entry\.", Severity.HIGH, "prefill_exfil", "Google Forms pre-fill"),
+    (r"forms\.gle.*\?", Severity.MEDIUM, "prefill_exfil", "Google Forms with params"),
+    (r"GET.*[?&](secret|token|key|password)=", Severity.CRITICAL, "prefill_exfil", "Secrets in GET params"),
 ]
 
 # File extensions to scan
@@ -401,7 +470,7 @@ def scan_skill(skill_path: str, strict: bool = False) -> ScanResult:
 def print_report(result: ScanResult, verbose: bool = False, show_suppressed: bool = False):
     """Print scan report."""
     print("\n" + "="*60)
-    print("🔍 SKILL SECURITY SCAN REPORT v2.0")
+    print("🔍 SKILL SECURITY SCAN REPORT v3.0")
     print("="*60)
     print(f"📁 Path: {result.path}")
     print(f"📄 Files scanned: {result.files_scanned}")
