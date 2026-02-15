@@ -43,7 +43,8 @@ done
 
 | Flag | Description |
 |------|-------------|
-| `--analyze` | AI-powered narrative analysis (uses Claude) |
+| `--analyze` | AI-powered narrative analysis |
+| `--model MODEL` | Choose model for AI analysis (e.g. `anthropic/claude-sonnet-4-5`, `google/gemini-3-flash-preview`) |
 | `--strict` | Ignore context, flag everything |
 | `--json` | Output as JSON |
 | `-v, --verbose` | Show all findings |

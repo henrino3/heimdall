@@ -409,7 +409,7 @@ def get_skill_content(path: str, max_chars: int = 50000) -> str:
     return ''.join(content_parts)
 
 
-def generate_ai_analysis(result: ScanResult, skill_content: str) -> str:
+def generate_ai_analysis(result: ScanResult, skill_content: str, model: str = None) -> str:
     """Generate AI-powered narrative analysis."""
     
     # Build findings summary for the prompt
@@ -469,10 +469,13 @@ Write a security analysis report in this EXACT format:
 Be direct, specific, and alarming where appropriate. Focus on real risks, not theoretical ones.
 If the skill appears safe, say so clearly."""
 
-    # Fallback: try openclaw agent CLI (routes through gateway with proper auth)
+    # Use openclaw agent CLI (routes through gateway with proper auth)
     try:
+        cmd = ['openclaw', 'agent', '-m', prompt, '--timeout', '120']
+        if model:
+            cmd.extend(['--model', model])
         proc = subprocess.run(
-            ['openclaw', 'agent', '-m', prompt, '--timeout', '120'],
+            cmd,
             capture_output=True,
             text=True,
             timeout=150
@@ -604,15 +607,17 @@ def main():
     parser.add_argument('--strict', action='store_true', help='Ignore context, flag everything')
     parser.add_argument('--show-suppressed', action='store_true', help='Show suppressed findings')
     parser.add_argument('--analyze', action='store_true', help='AI-powered narrative analysis')
+    parser.add_argument('--model', type=str, default=None, help='Model for AI analysis (e.g. anthropic/claude-sonnet-4-5, google/gemini-3-flash-preview)')
     
     args = parser.parse_args()
     
     result = scan_skill(args.path, strict=args.strict)
     
     if args.analyze:
-        print("\n🔍 Running AI-powered security analysis...\n")
+        model_msg = f" (model: {args.model})" if args.model else ""
+        print(f"\n🔍 Running AI-powered security analysis{model_msg}...\n")
         skill_content = get_skill_content(args.path)
-        analysis = generate_ai_analysis(result, skill_content)
+        analysis = generate_ai_analysis(result, skill_content, model=args.model)
         print(analysis)
         sys.exit(1 if result.max_severity >= Severity.HIGH else 0)
     elif args.json:
