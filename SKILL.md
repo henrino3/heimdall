@@ -21,7 +21,7 @@ Use Heimdall when:
 ```bash
 ~/clawd/skills/heimdall/scripts/skill-scan.py --analyze /path/to/skill
 ```
-Requires `OPENROUTER_API_KEY` env var or `~/clawd/secrets/openrouter.key`
+Routes through `openclaw agent` for AI analysis (no extra API keys needed)
 
 ### Scan from URL
 ```bash
@@ -152,14 +152,7 @@ echo 'alias skill-scan="~/clawd/skills/heimdall/scripts/skill-scan.py"' >> ~/.ba
 source ~/.bashrc
 ```
 
-For AI analysis, ensure you have an OpenRouter API key:
-```bash
-# Option 1: Environment variable
-export OPENROUTER_API_KEY="sk-or-..."
-
-# Option 2: Save to file
-echo "sk-or-..." > ~/clawd/secrets/openrouter.key
-```
+AI analysis routes through `openclaw agent` automatically (uses whatever model your gateway has configured). No extra API keys needed.
 
 ## Credits
 

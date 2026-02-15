@@ -469,59 +469,18 @@ Write a security analysis report in this EXACT format:
 Be direct, specific, and alarming where appropriate. Focus on real risks, not theoretical ones.
 If the skill appears safe, say so clearly."""
 
-    # Try using oracle CLI first
+    # Fallback: try openclaw agent CLI (routes through gateway with proper auth)
     try:
         proc = subprocess.run(
-            ['oracle', '-m', 'anthropic/claude-sonnet-4-20250514', '-p', prompt],
+            ['openclaw', 'agent', '-m', prompt, '--timeout', '120'],
             capture_output=True,
             text=True,
-            timeout=120
+            timeout=150
         )
         if proc.returncode == 0 and proc.stdout.strip():
             return proc.stdout.strip()
     except Exception:
         pass
-    
-    # Fallback: try curl to OpenRouter
-    api_key = os.environ.get('OPENROUTER_API_KEY', '')
-    if not api_key:
-        # Try reading from file
-        key_paths = [
-            os.path.expanduser('~/clawd/secrets/openrouter.key'),
-            os.path.expanduser('~/.config/openrouter/key'),
-        ]
-        for kp in key_paths:
-            if os.path.exists(kp):
-                with open(kp) as f:
-                    api_key = f.read().strip()
-                break
-    
-    if api_key:
-        try:
-            import urllib.request
-            import urllib.error
-            
-            data = json.dumps({
-                "model": "anthropic/claude-3.5-sonnet",
-                "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 4000
-            }).encode('utf-8')
-            
-            req = urllib.request.Request(
-                'https://openrouter.ai/api/v1/chat/completions',
-                data=data,
-                headers={
-                    'Authorization': f'Bearer {api_key}',
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': 'https://github.com/henrino3/heimdall'
-                }
-            )
-            
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                result_json = json.loads(resp.read().decode('utf-8'))
-                return result_json['choices'][0]['message']['content']
-        except Exception as e:
-            pass
     
     # Final fallback: generate basic report without AI
     return generate_basic_report(result)
@@ -560,7 +519,7 @@ AI analysis unavailable - showing pattern-based findings only.
     report += """
 ## Recommendation
 Review the flagged patterns manually before installing.
-Run with --analyze and ensure OPENROUTER_API_KEY is set for full AI analysis.
+Run with --analyze for full AI analysis (uses Anthropic API via agent auth).
 
 ============================================================
 """
