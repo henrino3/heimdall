@@ -1,3 +1,8 @@
+---
+name: heimdall
+description: "Security scanner for AI agent skills — scans for malicious patterns before installation. Use when installing new skills from ClawHub or GitHub, auditing existing skills for security issues, or vetting third-party code."
+---
+
 # Heimdall - Security Scanner for AI Agent Skills
 
 Scan OpenClaw skills for malicious patterns before installation. Context-aware scanning with AI-powered narrative analysis.
